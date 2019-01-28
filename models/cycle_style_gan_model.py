@@ -28,9 +28,12 @@ class CycleStyleGANModel(cycle_gan_model.CycleGANModel):
     def modify_commandline_options(parser, is_train=True):
         parser = super(CycleStyleGANModel, CycleStyleGANModel).modify_commandline_options(parser, is_train=is_train) # this syntax is weird
         if is_train:
-            parser.add_argument('--lambda_style_A', type=float, default=1e-3, help='weight for cycle loss (A -> B -> A)')
-            parser.add_argument('--lambda_style_B', type=float, default=1e-3, help='weight for cycle loss (B -> A -> B)')
+            parser.add_argument('--lambda_style_A', type=float, default=5e-3, help='weight for cycle loss (A -> B -> A)')
+            parser.add_argument('--lambda_style_B', type=float, default=5e-3, help='weight for cycle loss (B -> A -> B)')
+            parser.add_argument('--lambda_style_loss', type=float, nargs='+', default=[10,1,1,1,1,1], help='content loss (conv4) and style loss (conv1,2,3,4,5) weight')
+
         return parser
+
 
     def backward_G(self):
         """Calculate the loss for generators G_A and G_B"""

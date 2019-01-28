@@ -27,6 +27,22 @@ class Normalization(nn.Module):
         # normalize img
         return (img - self.mean) / self.std
 
+class UnNormalize(nn.Module):
+    def __init__(self, mean, std):
+        super().__init__()
+        self.mean = mean.view(-1, 1, 1).clone()
+        self.std = std.view(-1, 1, 1).clone()
+
+    def forward(self, tensor):
+        """
+        Args:
+            tensor (Tensor): Tensor image of size (C, H, W) to be normalized.
+        Returns:
+            Tensor: Normalized image.
+        """
+        return tensor * self.std + self.mean
+
+
 class ContentLoss(nn.Module):
 
     def __init__(self):
@@ -68,6 +84,7 @@ def get_style_model_and_losses(cnn, normalization_mean, normalization_std,
     cnn = copy.deepcopy(cnn)
 
     # normalization module
+    unnormalization = UnNormalize(torch.tensor([0.5, 0.5, 0.5]).cuda(), torch.tensor([0.5, 0.5, 0.5]).cuda())
     normalization = Normalization(normalization_mean, normalization_std).cuda()
 
     # just in order to have an iterable access to or list of content/syle
@@ -77,7 +94,7 @@ def get_style_model_and_losses(cnn, normalization_mean, normalization_std,
 
     # assuming that cnn is a nn.Sequential, so we make a new nn.Sequential
     # to put in modules that are supposed to be activated sequentially
-    model = nn.Sequential(normalization)
+    model = nn.Sequential(*[unnormalization, normalization])
 
     i = 0  # increment every time we see a conv
     for layer in cnn.children():
@@ -122,7 +139,7 @@ def get_style_model_and_losses(cnn, normalization_mean, normalization_std,
 
 
 class StylizedLoss(nn.Module):
-    def __init__(self, opt, weights=[3, 3, 3, 3, 1]):
+    def __init__(self, opt, ):
         super().__init__()
         self.opt = opt
         cnn = models.vgg19(pretrained=True).features.cuda().eval()
@@ -130,7 +147,8 @@ class StylizedLoss(nn.Module):
         cnn_normalization_std = torch.tensor([0.229, 0.224, 0.225]).cuda()
         fake_content = fake_style = torch.zeros(1, 3, self.opt.crop_size, self.opt.crop_size).cuda()
         self.model, self.style_losses, self.content_losses = get_style_model_and_losses(cnn, normalization_mean=cnn_normalization_mean, normalization_std=cnn_normalization_std, style_img=fake_style, content_img=fake_content)
-        self.weights = weights
+        self.weights = torch.Tensor(self.opt.lambda_style_loss).cuda() / sum(self.opt.lambda_style_loss)
+        print(f'Style Weights : {self.weights}')
 
     def forward(self, _input, content, style, weights=None):
         content_features = []
@@ -151,6 +169,6 @@ class StylizedLoss(nn.Module):
             input_features.append(sl.G)
         score = 0
         for input_feature, target_feature, weight in zip(input_features, content_features + style_features, weights):
-            assert (input_feature - target_feature).abs().mean()> 1e-5, f'input is very close to target, you sure everything right? distance {(input_feature - target_feature).sum()}'
+            # assert (input_feature - target_feature).abs().mean()> 1e-5, f'input is very close to target, you sure everything right? distance {(input_feature - target_feature).sum()}'
             score += weight * F.mse_loss(input_feature, target_feature)
         return score
