@@ -29,16 +29,11 @@ class Normalization(nn.Module):
 
 class ContentLoss(nn.Module):
 
-    def __init__(self, target,):
+    def __init__(self):
         super(ContentLoss, self).__init__()
-        # we 'detach' the target content from the tree used
-        # to dynamically compute the gradient: this is a stated value,
-        # not a variable. Otherwise the forward method of the criterion
-        # will throw an error.
-        self.target = target.detach()
 
     def forward(self, _input):
-        self.loss = F.mse_loss(_input, self.target)
+        self.output = _input.clone()
         return _input
 
 def gram_matrix(_input):
@@ -55,14 +50,11 @@ def gram_matrix(_input):
     return G.div(a * b * c * d)
 
 class StyleLoss(nn.Module):
-
-    def __init__(self, target_feature):
+    def __init__(self):
         super(StyleLoss, self).__init__()
-        self.target = gram_matrix(target_feature).detach()
 
     def forward(self, _input):
-        G = gram_matrix(_input)
-        self.loss = F.mse_loss(G, self.target)
+        self.G = gram_matrix(_input)
         return _input
 
 # desired depth layers to compute style/content losses :
@@ -108,16 +100,14 @@ def get_style_model_and_losses(cnn, normalization_mean, normalization_std,
         model.add_module(name, layer)
 
         if name in content_layers:
-            # add content loss:
             target = model(content_img).detach()
-            content_loss = ContentLoss(target)
+            content_loss = ContentLoss()
             model.add_module("content_loss_{}".format(i), content_loss)
             content_losses.append(content_loss)
 
         if name in style_layers:
-            # add style loss:
             target_feature = model(style_img).detach()
-            style_loss = StyleLoss(target_feature)
+            style_loss = StyleLoss()
             model.add_module("style_loss_{}".format(i), style_loss)
             style_losses.append(style_loss)
 
@@ -129,3 +119,36 @@ def get_style_model_and_losses(cnn, normalization_mean, normalization_std,
     model = model[:(i + 1)]
 
     return model, style_losses, content_losses
+
+
+class StylizedLoss(nn.Module):
+    def __init__(self, weights=[1000000, 1000000, 1000000, 1000000, 1]):
+        cnn = models.vgg19(pretrained=True).features.cuda().eval()
+        cnn_normalization_mean = torch.tensor([0.485, 0.456, 0.406]).cuda()
+        cnn_normalization_std = torch.tensor([0.229, 0.224, 0.225]).cuda()
+        fake_content = fake_style = torch.zeros(1, 3, self.opt.crop_size, self.opt.crop_size).cuda()
+        self.model, self.style_losses, self.content_losses = get_style_model_and_losses(cnn, normalization_mean=cnn_normalization_mean, normalization_std=cnn_normalization_std, style_img=fake_style, content_img=fake_content)
+        self.weights = weights
+
+    def forward(self, _input, content, style, weights=None):
+        content_features = []
+        style_features = []
+        input_features = []
+        self.model(content)
+        for cl in self.content_losses:
+            content_features.append(cl.output)
+        self.model(style)
+        for sl in self.style_losses:
+            style_features.append(sl.G)
+        if weights is None:
+            weights = self.weights
+        self.model(_input)
+        for cl in self.content_losses:
+            input_features.append(cl.output)
+        for sl in self.style_losses:
+            input_features.append(sl.G)
+        score = 0
+        for input_feature, target_feature, weight in zip(input_features, style_features + content, weights):
+            assert (input_feature - target_feature).sum()> 100, f'input is very close to target, you sure everything right? distance {(input_feature - target_feature).sum()}'
+            score += weight * F.mse_loss(input_feature, target_feature)
+        return score

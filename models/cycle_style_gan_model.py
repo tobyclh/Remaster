@@ -21,11 +21,7 @@ from . import stylized
 class CycleStyleGANModel(cycle_gan_model.CycleGANModel):
     def __init__(self, opt):
         super().__init__(opt)
-        cnn = models.vgg19(pretrained=True).features.cuda().eval()
-        cnn_normalization_mean = torch.tensor([0.485, 0.456, 0.406]).cuda()
-        cnn_normalization_std = torch.tensor([0.229, 0.224, 0.225]).cuda()
-        stylized.get_style_model_and_losses(cnn, normalization_mean=cnn_normalization_mean, normalization_std=cnn_normalization_std)
-
+        self.style_loss_net = stylized.StylizedLoss()
 
     def backward_G(self):
         """Calculate the loss for generators G_A and G_B"""
@@ -52,7 +48,11 @@ class CycleStyleGANModel(cycle_gan_model.CycleGANModel):
         self.loss_cycle_A = self.criterionCycle(self.rec_A, self.real_A) * lambda_A
         # Backward cycle loss || G_A(G_B(B)) - B||
         self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B) * lambda_B
+        # Style loss
+        self.loss_G_A_style = self.style_loss_net(self.fake_A, self.real_A, self.real_B)
+        self.loss_G_B_style = self.style_loss_net(self.fake_B, self.real_B, self.real_A)
+
         # combined loss and calculate gradients
-        self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_idt_A + self.loss_idt_B
+        self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_idt_A + self.loss_idt_B + self.loss_G_A_style + self.loss_G_B_style
         self.loss_G.backward()
 
