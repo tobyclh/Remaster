@@ -9,7 +9,9 @@
 ## What is it and why?
 See [Project page](https://github.com/tobyclh/Remaster)
 
-## Implementation
+## Train
+python train.py --dataroot ./datasets/maps --name maps_cyclegan --model cycle_style_gan --dataset_mode unaligned_video
+
 
 
 ## Acknowledgement

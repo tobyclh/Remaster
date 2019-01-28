@@ -3,7 +3,6 @@ import itertools
 from util.image_pool import ImagePool
 from .base_model import BaseModel
 from . import cycle_gan_model
-from __future__ import print_function
 
 import torch
 import torch.nn as nn
@@ -21,13 +20,25 @@ from . import stylized
 class CycleStyleGANModel(cycle_gan_model.CycleGANModel):
     def __init__(self, opt):
         super().__init__(opt)
-        self.style_loss_net = stylized.StylizedLoss()
+        self.loss_names += ['G_A_style', 'G_B_style'] # add this for visualization
+        self.style_loss_net = stylized.StylizedLoss(opt)
+
+
+    @staticmethod
+    def modify_commandline_options(parser, is_train=True):
+        parser = super(CycleStyleGANModel, CycleStyleGANModel).modify_commandline_options(parser, is_train=is_train) # this syntax is weird
+        if is_train:
+            parser.add_argument('--lambda_style_A', type=float, default=1e-3, help='weight for cycle loss (A -> B -> A)')
+            parser.add_argument('--lambda_style_B', type=float, default=1e-3, help='weight for cycle loss (B -> A -> B)')
+        return parser
 
     def backward_G(self):
         """Calculate the loss for generators G_A and G_B"""
         lambda_idt = self.opt.lambda_identity
         lambda_A = self.opt.lambda_A
         lambda_B = self.opt.lambda_B
+        lambda_style_A = self.opt.lambda_style_A
+        lambda_style_B = self.opt.lambda_style_B
         # Identity loss
         if lambda_idt > 0:
             # G_A should be identity if real_B is fed: ||G_A(B) - B||
@@ -49,8 +60,8 @@ class CycleStyleGANModel(cycle_gan_model.CycleGANModel):
         # Backward cycle loss || G_A(G_B(B)) - B||
         self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B) * lambda_B
         # Style loss
-        self.loss_G_A_style = self.style_loss_net(self.fake_A, self.real_A, self.real_B)
-        self.loss_G_B_style = self.style_loss_net(self.fake_B, self.real_B, self.real_A)
+        self.loss_G_A_style = self.style_loss_net(self.fake_A, self.real_A, self.real_B) * lambda_style_A
+        self.loss_G_B_style = self.style_loss_net(self.fake_B, self.real_B, self.real_A) * lambda_style_B
 
         # combined loss and calculate gradients
         self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_idt_A + self.loss_idt_B + self.loss_G_A_style + self.loss_G_B_style

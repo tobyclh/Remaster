@@ -20,8 +20,8 @@ class Normalization(nn.Module):
         # .view the mean and std to make them [C x 1 x 1] so that they can
         # directly work with image Tensor of shape [B x C x H x W].
         # B is batch size. C is number of channels. H is height and W is width.
-        self.mean = torch.tensor(mean).view(-1, 1, 1)
-        self.std = torch.tensor(std).view(-1, 1, 1)
+        self.mean = mean.view(-1, 1, 1).clone()
+        self.std = std.view(-1, 1, 1).clone()
 
     def forward(self, img):
         # normalize img
@@ -122,7 +122,9 @@ def get_style_model_and_losses(cnn, normalization_mean, normalization_std,
 
 
 class StylizedLoss(nn.Module):
-    def __init__(self, weights=[1000000, 1000000, 1000000, 1000000, 1]):
+    def __init__(self, opt, weights=[3, 3, 3, 3, 1]):
+        super().__init__()
+        self.opt = opt
         cnn = models.vgg19(pretrained=True).features.cuda().eval()
         cnn_normalization_mean = torch.tensor([0.485, 0.456, 0.406]).cuda()
         cnn_normalization_std = torch.tensor([0.229, 0.224, 0.225]).cuda()
@@ -148,7 +150,7 @@ class StylizedLoss(nn.Module):
         for sl in self.style_losses:
             input_features.append(sl.G)
         score = 0
-        for input_feature, target_feature, weight in zip(input_features, style_features + content, weights):
-            assert (input_feature - target_feature).sum()> 100, f'input is very close to target, you sure everything right? distance {(input_feature - target_feature).sum()}'
+        for input_feature, target_feature, weight in zip(input_features, content_features + style_features, weights):
+            assert (input_feature - target_feature).abs().mean()> 1e-5, f'input is very close to target, you sure everything right? distance {(input_feature - target_feature).sum()}'
             score += weight * F.mse_loss(input_feature, target_feature)
         return score
