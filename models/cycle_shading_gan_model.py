@@ -42,9 +42,9 @@ class CycleShadingGANModel(cycle_gan_model.CycleGANModel):
                                         not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
 
         if self.isTrain:  # define discriminators
-            self.netD_A = networks.define_D(opt.output_nc, opt.ndf, opt.netD,
+            self.netD_A = networks.define_D(3, opt.ndf, opt.netD,
                                             opt.n_layers_D, opt.norm, opt.init_type, opt.init_gain, self.gpu_ids)
-            self.netD_B = networks.define_D(opt.input_nc, opt.ndf, opt.netD,
+            self.netD_B = networks.define_D(3, opt.ndf, opt.netD,
                                             opt.n_layers_D, opt.norm, opt.init_type, opt.init_gain, self.gpu_ids)
 
         if self.isTrain:
@@ -64,12 +64,14 @@ class CycleShadingGANModel(cycle_gan_model.CycleGANModel):
 
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
-        self.fake_B = self.real_A.clone()               # G_A(A)
-        self.fake_B[:, 0] += self.netG_A(self.real_A)[0]
-        self.rec_A = self.netG_B(self.fake_B)           # G_B(G_A(A))
+        fake_B = self.netG_A(self.real_A)                 # G_A(A), fake_B is a tone mapper
+        self.fake_B = self.real_A.clone()
+        self.fake_B[:, 0:1] += fake_B                   # apply the tone, now actual_fake_B should have the content of one zelda game but the lighting of the other
+        self.rec_A = self.netG_B(self.fake_B)                # G_B(G_A(A))
+        fake_A = self.netG_B(self.real_B)
         self.fake_A = self.real_B.clone()
-        self.fake_A[:, 0] += self.netG_B(self.real_B)[0]
-        self.rec_B = self.netG_A(self.fake_A)           # G_A(G_B(B))
+        self.fake_A[:, 0:1] += fake_A
+        self.rec_B = self.netG_A(self.fake_A)                # G_A(G_B(B))
 
     def backward_G(self):
         """Calculate the loss for generators G_A and G_B"""
@@ -123,7 +125,7 @@ class CycleShadingGANModel(cycle_gan_model.CycleGANModel):
         """
         AB2 = AB * 110.0
         L2 = (L + 1.0) * 50.0
-        print(f'L2, AB2 : {L2.shape}, {AB2.shape}')
+        # print(f'L2, AB2 : {L2.shape}, {AB2.shape}')
         Lab = torch.cat([L2, AB2], dim=1)
         Lab = Lab[0].data.cpu().float().numpy()
         Lab = np.transpose(Lab.astype(np.float64), (1, 2, 0))
