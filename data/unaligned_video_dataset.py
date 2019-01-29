@@ -4,7 +4,9 @@ from data.image_folder import make_dataset
 from data.video_dataset import VideoDatasets
 from PIL import Image
 import random
-
+from skimage import color  # require skimage
+import numpy as np
+import torchvision.transforms as transforms
 
 class UnalignedVideoDataset(BaseDataset):
     """
@@ -35,8 +37,10 @@ class UnalignedVideoDataset(BaseDataset):
         btoA = self.opt.direction == 'BtoA'
         input_nc = self.opt.output_nc if btoA else self.opt.input_nc       # get the number of channels of input image
         output_nc = self.opt.input_nc if btoA else self.opt.output_nc      # get the number of channels of output image
-        self.transform_A = get_transform(self.opt, grayscale=(input_nc == 1))
-        self.transform_B = get_transform(self.opt, grayscale=(output_nc == 1))
+        self.color_space = 'lab' if opt.model=='cycle_shading_gan' else 'rgb'
+        print(f'Using color space : {self.color_space}')
+        self.transform_A = get_transform(self.opt, grayscale=(input_nc == 1), convert=self.color_space=='rgb')
+        self.transform_B = get_transform(self.opt, grayscale=(output_nc == 1), convert=self.color_space=='rgb')
 
     def __getitem__(self, index):
         # print(f'Index : {index}')
@@ -44,6 +48,19 @@ class UnalignedVideoDataset(BaseDataset):
         B_img, B_path = self.B_paths[index[2], index[3]]
         A = self.transform_A(A_img)
         B = self.transform_B(B_img)
+        if self.color_space == 'lab':
+            lab_A = color.rgb2lab(A).astype(np.float32)
+            lab_A_t = transforms.ToTensor()(lab_A)
+            lab_A_t[0, ...] /= 50.0
+            lab_A_t[0, ...] -= 1
+            lab_A_t[[1,2], ...] /= 110.0
+            lab_B = color.rgb2lab(B).astype(np.float32)
+            lab_B_t = transforms.ToTensor()(lab_B)
+            lab_B_t[0, ...] /= 50.0
+            lab_B_t[0, ...] -= 1
+            lab_B_t[[1,2], ...] /= 110.0
+            A = lab_A_t
+            B = lab_B_t
         return {'A': A, 'B': B, 'A_paths': A_path, 'B_paths': B_path}
 
     def __len__(self):

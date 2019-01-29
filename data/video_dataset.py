@@ -41,21 +41,25 @@ class VideoDatasets(Dataset):
         
         filename = self.file_list[file_idx]
         video_reader = self.get_video_reader(filename)
-        frame = self.get_frame(video_reader, frame_idx)
+        frame = self.get_frame(video_reader, frame_idx, file_idx, filename)
         frame = Image.fromarray(frame)
 
         if self.return_paths:
             return frame, filename + '_' + str(frame_idx)
         return frame
 
-    def get_frame(self, reader, frame_idx):
-        return reader.get_data(frame_idx)
+    def get_frame(self, reader, frame_idx, file_idx, filename):
+        try:
+            return reader.get_data(frame_idx)
+        except Exception as e:
+            print(f'exception : {file_idx}, {filename}, {frame_idx}, {reader.get_length()}')
+            self.get_frame(reader, frame_idx-1, file_idx, filename)
 
 
     def get_video_length(self, reader):
         return reader.get_length()
-
-    @lru_cache(maxsize=20)
+                              
+    # @lru_cache(maxsize=20)
     def get_video_reader(self, video_file):
         video_reader = imageio.get_reader(video_file, 'ffmpeg')
         return video_reader
