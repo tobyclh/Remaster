@@ -67,10 +67,12 @@ class CycleShadingGANModel(cycle_gan_model.CycleGANModel):
         fake_B = self.netG_A(self.real_A)                 # G_A(A), fake_B is a tone mapper
         self.fake_B = self.real_A.clone()
         self.fake_B[:, 0:1] += fake_B                   # apply the tone, now actual_fake_B should have the content of one zelda game but the lighting of the other
+        self.fake_B.clamp_(-1, 1)
         self.rec_A = self.netG_B(self.fake_B)                # G_B(G_A(A))
         fake_A = self.netG_B(self.real_B)
         self.fake_A = self.real_B.clone()
         self.fake_A[:, 0:1] += fake_A
+        self.fake_A.clamp_(-1, 1)
         self.rec_B = self.netG_A(self.fake_A)                # G_A(G_B(B))
 
     def backward_G(self):

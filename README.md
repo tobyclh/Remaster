@@ -10,7 +10,7 @@
 See [Project page](https://github.com/tobyclh/Remaster)
 
 ## Train
-python train.py --dataroot zelda --name zelda_cyclestylegan --model cycle_style_gan --dataset_mode unaligned_video --save_by_iter 
+python train.py --dataroot zelda --name zelda_cyclestylegan --model cycle_style_gan --dataset_mode unaligned_video --save_by_iter --batch_size 4
 
 
 
