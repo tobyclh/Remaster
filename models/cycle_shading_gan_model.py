@@ -17,7 +17,7 @@ import copy
 from . import stylized
 from . import color_utils
 from . import networks
-from pytorch_colors import rgb_to_lab, lab_to_rgb
+# from pytorch_colors import rgb_to_lab, lab_to_rgb
 from skimage import color  # require skimage
 
 class CycleShadingGANModel(cycle_gan_model.CycleGANModel):
