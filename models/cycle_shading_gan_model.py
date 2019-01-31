@@ -15,7 +15,7 @@ import torchvision.models as models
 
 import copy
 from . import stylized
-from . import color_utils
+# from . import color_utils
 from . import networks
 # from pytorch_colors import rgb_to_lab, lab_to_rgb
 from skimage import color  # require skimage
